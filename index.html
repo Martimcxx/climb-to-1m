@@ -517,7 +517,7 @@ textarea{resize:vertical;min-height:64px;font-family:'IBM Plex Sans',sans-serif;
         </div>
         <div>
           <label>AUD/USD rate</label>
-          <input type="number" id="log-nvda-fx" step="0.0001" value="0.7164" oninput="convertNvdaToAud()">
+          <input type="number" id="log-nvda-fx" step="0.0001" value="0.688" oninput="convertNvdaToAud()">
         </div>
       </div>
       <label>NVDA value (AUD) — auto-converted, or enter manually</label>
@@ -613,9 +613,9 @@ textarea{resize:vertical;min-height:64px;font-family:'IBM Plex Sans',sans-serif;
       </div>
       <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border);">
         <label>Current NVDA price (USD) — enter to update P&L</label>
-        <input type="number" id="nvda-current-price" step="0.01" placeholder="200.75" value="200.75">
+        <input type="number" id="nvda-current-price" step="0.01" placeholder="200.75" value="200.75" oninput="setNvdaPx(this.value)">
         <label>Current AUD/USD rate</label>
-        <input type="number" id="nvda-current-audusd" step="0.0001" placeholder="0.7164" value="0.7164">
+        <input type="number" id="nvda-current-audusd" step="0.0001" placeholder="0.688" value="0.688" oninput="setFx(this.value)">
         <button class="btn-ghost" style="margin-top:10px;width:100%" onclick="updateNvdaPnl()">Refresh P&L</button>
       </div>
     </div>
@@ -915,12 +915,31 @@ function nvdaCurrentAUD(){
 // Live NVDA price in AUD, taken from the tracker's quote fields.
 // Falls back to deriving it from the last journal entry only if unavailable.
 const NVDA_FALLBACK_USD = 200.75;
+// Remembered AUD/USD rate and NVDA price (per device). Replaces the old fixed 0.7164.
+const FX_KEY = 'climb-fx-v1', NVDA_PX_KEY = 'climb-nvda-usd-v1', FX_DEFAULT = 0.688;
+function getFx(){ try{ const v=parseFloat(localStorage.getItem(FX_KEY)); if(v>0) return v; }catch(e){} return FX_DEFAULT; }
+function setFx(v){
+  v=parseFloat(v); if(!(v>0)) return;
+  try{ localStorage.setItem(FX_KEY,String(v)); }catch(e){}
+  ['log-nvda-fx','nvda-current-audusd'].forEach(id=>{ const el=document.getElementById(id); if(el && parseFloat(el.value)!==v) el.value=v; });
+}
+function getNvdaPx(){ try{ const v=parseFloat(localStorage.getItem(NVDA_PX_KEY)); if(v>0) return v; }catch(e){} return null; }
+function setNvdaPx(v){
+  v=parseFloat(v); if(!(v>0)) return;
+  try{ localStorage.setItem(NVDA_PX_KEY,String(v)); }catch(e){}
+  const el=document.getElementById('nvda-current-price'); if(el && parseFloat(el.value)!==v) el.value=+v.toFixed(2);
+}
+function initFxFields(){
+  const fx=getFx();
+  ['log-nvda-fx','nvda-current-audusd','nvda-audusd'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=fx; });
+  const px=getNvdaPx(); const el=document.getElementById('nvda-current-price'); if(px && el) el.value=px;
+}
 function nvdaPriceAUD(){
   const pEl = document.getElementById('nvda-current-price');
   const fEl = document.getElementById('nvda-current-audusd');
   const usd = pEl ? parseFloat(pEl.value) : NaN;
   const fx  = fEl ? parseFloat(fEl.value) : NaN;
-  const rate = (!isNaN(fx) && fx>0) ? fx : 0.7164;
+  const rate = (!isNaN(fx) && fx>0) ? fx : getFx();
   if(!isNaN(usd) && usd>0) return usd/rate;
   const sh = nvdaTotalShares();
   const L  = latestEntry();
@@ -1032,8 +1051,8 @@ function renderDashboard(){
   const nvdaLogged = latest.nvda||0;                 // what the journal says
   const nvdaCurPriceAUD = nvdaPriceAUD();            // live quote
   const nvdaLiveAUD = nvdaShares*nvdaCurPriceAUD;    // what it's actually worth
-  const nvdaCostAUD= nvdaBlended/0.7164;
-  const nvdaPriceUSD = nvdaCurPriceAUD*0.7164;
+  const nvdaCostAUD= nvdaBlended/getFx();
+  const nvdaPriceUSD = nvdaCurPriceAUD*getFx();
   const nvdaGainUSD= (nvdaPriceUSD - nvdaBlended)*nvdaShares;
   const nvdaGainPct= nvdaBlended>0 ? ((nvdaPriceUSD-nvdaBlended)/nvdaBlended*100) : 0;
   // Flag a >2% gap between the logged figure and live market value.
@@ -1176,7 +1195,7 @@ function renderDashboard(){
     </div>`;
   });
 
-  document.getElementById('disc').innerHTML=`⚠ All figures AUD. Rates: Hostplus 8.30% p.a. (Balanced MySuper 10yr), VGS 13.48% p.a. (Vanguard fact sheet Apr 2026), DHHF 10.35% p.a. (BetaShares 5yr), VHY 14.08% p.a. (5yr to Sep 2026), NVDA 25% p.a. conservative forward estimate, HYSA 4.5% p.a. Projections update live from your latest journal entry. AUD/USD held at 0.7164. Preservation age 60 assumed (Sep 2035). Past performance is not a reliable indicator of future returns. Not financial advice.`;
+  document.getElementById('disc').innerHTML=`⚠ All figures AUD. Rates: Hostplus 8.30% p.a. (Balanced MySuper 10yr), VGS 13.48% p.a. (Vanguard fact sheet Apr 2026), DHHF 10.35% p.a. (BetaShares 5yr), VHY 14.08% p.a. (5yr to Sep 2026), NVDA 25% p.a. conservative forward estimate, HYSA 4.5% p.a. Projections update live from your latest journal entry. AUD/USD uses your last-entered rate. Preservation age 60 assumed (Sep 2035). Past performance is not a reliable indicator of future returns. Not financial advice.`;
 
   try{ renderMilestoneChart(); }
   catch(err){
@@ -1201,10 +1220,18 @@ function saveEntry(){
     return isNaN(v) || el.value==='' ? fallback : v;
   };
 
+  // If a USD value was typed, convert it now with the rate in the box (never a stale default).
+  const usdTyped = getVal('log-nvda-usd', null);
+  const fxTyped  = getVal('log-nvda-fx', getFx());
+  if(usdTyped!==null && usdTyped>0 && fxTyped>0){
+    setFx(fxTyped);
+    const sh=nvdaTotalShares(); if(sh>0) setNvdaPx(usdTyped/sh);
+    document.getElementById('log-nvda').value=(usdTyped/fxTyped).toFixed(2);
+  }
   const nvdaManual = getVal('log-nvda', null);
   const nvdaAuto   = nvdaManual !== null ? nvdaManual
     : (nvdaTotalShares() * parseFloat(document.getElementById('nvda-current-price').value||200.75)
-       / parseFloat(document.getElementById('nvda-current-audusd').value||0.7164));
+       / (parseFloat(document.getElementById('nvda-current-audusd').value)||getFx()));
 
   const entry = {
     id:       'e'+Date.now(),
@@ -1255,7 +1282,7 @@ function updateNvdaPnl(){ renderNvda(); }
 
 function renderNvda(){
   const curUSD = parseFloat(document.getElementById('nvda-current-price').value)||200.75;
-  const curFX  = parseFloat(document.getElementById('nvda-current-audusd').value)||0.7164;
+  const curFX  = parseFloat(document.getElementById('nvda-current-audusd').value)||getFx();
   const curAUD = curUSD/curFX;
   const totalSh= nvdaTotalShares();
   const blendUSD=nvdaBlendedUSD();
@@ -1348,9 +1375,11 @@ function renderJournal(){
 
 function convertNvdaToAud(){
   const usd = parseFloat(document.getElementById('log-nvda-usd').value);
-  const fx  = parseFloat(document.getElementById('log-nvda-fx').value) || 0.7164;
+  const fx  = parseFloat(document.getElementById('log-nvda-fx').value) || getFx();
+  if(fx>0) setFx(fx);
   if(!isNaN(usd) && usd > 0){
     document.getElementById('log-nvda').value = (usd / fx).toFixed(2);
+    const sh=nvdaTotalShares(); if(sh>0) setNvdaPx(usd/sh);
   }
 }
 
@@ -1364,6 +1393,7 @@ function prefillLogForm(){
   document.getElementById('log-vhy').value       = prev.vhy||'';
   document.getElementById('log-nvda').value      = prev.nvda||'';
   document.getElementById('log-nvda-usd').value  = '';
+  document.getElementById('log-nvda-fx').value   = getFx();
   document.getElementById('log-note').value      = '';
 }
 
@@ -1381,6 +1411,7 @@ function delNvda(id){
 // ============================================================
 // --- DOM-only setup. Safe to run at any time, touches no data. ---
 function initUI(){
+  initFxFields();
   try{
     const sc=localStorage.getItem('climb-nvda-scenario');
     if(sc && NVDA_SCENARIOS[sc]) nvdaScenario=sc;
