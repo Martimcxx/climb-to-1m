@@ -444,7 +444,7 @@ textarea{resize:vertical;min-height:64px;font-family:'IBM Plex Sans',sans-serif;
     <span class="nvda-toggle-hint" id="nvda-toggle-hint"></span>
   </div>
   <div class="tbl-wrap"><table><thead><tr>
-    <th>Year · Age</th><th>Super</th><th>VGS</th><th>DHHF</th><th>NVDA</th><th>HYSA</th><th>Liquid</th><th>Total</th><th></th>
+    <th>Year · Age</th><th>Super</th><th>VGS</th><th>DHHF</th><th>VHY</th><th>NVDA</th><th>HYSA</th><th>Liquid</th><th>Total</th><th></th>
   </tr></thead><tbody id="proj-table"></tbody></table></div>
 
   <!-- BAR CHART -->
@@ -507,6 +507,10 @@ textarea{resize:vertical;min-height:64px;font-family:'IBM Plex Sans',sans-serif;
         <div><label>DHHF (AUD)</label><input type="number" id="log-dhhf" step="0.01" placeholder="1733.89"></div>
       </div>
       <div class="field-row">
+        <div><label>VHY (AUD)</label><input type="number" id="log-vhy" step="0.01" placeholder="339.84"></div>
+        <div></div>
+      </div>
+      <div class="field-row">
         <div>
           <label>NVDA value (USD) — enter total USD value</label>
           <input type="number" id="log-nvda-usd" step="0.01" placeholder="e.g. 1505.49" oninput="convertNvdaToAud()">
@@ -533,6 +537,7 @@ textarea{resize:vertical;min-height:64px;font-family:'IBM Plex Sans',sans-serif;
         <br>
         <div>📈 <b style="color:var(--text)">VGS:</b> $165/fn · $4,290/yr</div>
         <div>📊 <b style="color:var(--text)">DHHF:</b> $100/fn · $2,600/yr</div>
+        <div>💵 <b style="color:var(--text)">VHY:</b> ~$85/fn (1 unit) · ~$2,210/yr</div>
         <div>💰 <b style="color:var(--text)">HYSA:</b> $200/fn · $5,200/yr</div>
         <br>
         <div>⚡ <b style="color:var(--text)">NVDA:</b> <span id="rates-nvda">—</span></div>
@@ -544,6 +549,7 @@ textarea{resize:vertical;min-height:64px;font-family:'IBM Plex Sans',sans-serif;
           <span>Hostplus:</span><span style="color:var(--text)">8.30% p.a.</span>
           <span>VGS:</span><span style="color:var(--text)">13.48% p.a.</span>
           <span>DHHF:</span><span style="color:var(--text)">10.35% p.a.</span>
+          <span>VHY:</span><span style="color:var(--text)">14.08% p.a.</span>
           <span>NVDA:</span><span style="color:var(--text)">25.00% p.a.</span>
           <span>HYSA:</span><span style="color:var(--text)">4.50% p.a.</span>
         </div>
@@ -640,8 +646,8 @@ const STORAGE_KEY = 'climb-to-1m-v2';
 const START_DATE  = '2026-03-12';
 const GOAL        = 1000000;
 
-const RATES = {hostplus:0.0830, vgs:0.1348, dhhf:0.1035, nvda:0.25, hysa:0.045};
-const CONTRIB = {hostplus:18720, vgs:165*26, dhhf:100*26, hysa:200*26};
+const RATES = {hostplus:0.0830, vgs:0.1348, dhhf:0.1035, vhy:0.1408, nvda:0.25, hysa:0.045};
+const CONTRIB = {hostplus:18720, vgs:165*26, dhhf:100*26, vhy:85*26, hysa:200*26};
 const NVDA_ADD_PER_YEAR = 10;   // annual target (was 5)
 
 // NVDA is the single biggest assumption in this model — at 25% p.a. it is
@@ -710,8 +716,8 @@ const COLLECTIONS = {
     restore: ()=> { const o=lsGet(STORAGE_KEY,null); if(o&&Array.isArray(o.entries)) state.entries=o.entries; },
     seeds  : ()=> SEED_ENTRIES,
     dedupe : e => e.date,                       // one net-worth snapshot per day
-    toRow  : e => ({id:String(e.id),date:e.date,hostplus:+e.hostplus||0,hysa:+e.hysa||0,vgs:+e.vgs||0,dhhf:+e.dhhf||0,nvda:+e.nvda||0,note:e.note||''}),
-    fromRow: r => ({id:String(r.id),date:r.date,hostplus:+r.hostplus||0,hysa:+r.hysa||0,vgs:+r.vgs||0,dhhf:+r.dhhf||0,nvda:+r.nvda||0,note:r.note||''}),
+    toRow  : e => ({id:String(e.id),date:e.date,hostplus:+e.hostplus||0,hysa:+e.hysa||0,vgs:+e.vgs||0,dhhf:+e.dhhf||0,...(+e.vhy?{vhy:+e.vhy}:{}),nvda:+e.nvda||0,note:e.note||''}),
+    fromRow: r => ({id:String(r.id),date:r.date,hostplus:+r.hostplus||0,hysa:+r.hysa||0,vgs:+r.vgs||0,dhhf:+r.dhhf||0,vhy:+r.vhy||0,nvda:+r.nvda||0,note:r.note||''}),
   },
   nvda: {
     table  : 'nvda_purchases',
@@ -922,10 +928,10 @@ function nvdaPriceAUD(){
   return NVDA_FALLBACK_USD/rate;
 }
 
-function totalOf(e){ return (e.hostplus||0)+(e.hysa||0)+(e.vgs||0)+(e.dhhf||0)+(e.nvda||0); }
+function totalOf(e){ return (e.hostplus||0)+(e.hysa||0)+(e.vgs||0)+(e.dhhf||0)+(e.vhy||0)+(e.nvda||0); }
 
 function latestEntry(){
-  return [...state.entries].sort((a,b)=>b.date.localeCompare(a.date))[0] || {hostplus:0,hysa:0,vgs:0,dhhf:0,nvda:0,date:today()};
+  return [...state.entries].sort((a,b)=>b.date.localeCompare(a.date))[0] || {hostplus:0,hysa:0,vgs:0,dhhf:0,vhy:0,nvda:0,date:today()};
 }
 
 function projectTotal(bal, n){
@@ -935,6 +941,7 @@ function projectTotal(bal, n){
   return fvR(sv,RATES.hostplus,CONTRIB.hostplus,n)
        + fvR(vb,RATES.vgs,CONTRIB.vgs,n)
        + fvR(db,RATES.dhhf,CONTRIB.dhhf,n)
+       + fvR(bal.vhy||0,RATES.vhy,CONTRIB.vhy,n)
        + fvR(hb,RATES.hysa,CONTRIB.hysa,n)
        + (nvdaIncluded() ? nvdaFV(nvdaShares,NVDA_ADD_PER_YEAR,nvdaPrice,nvdaRate(),n) : 0);
 }
@@ -1041,11 +1048,11 @@ function renderDashboard(){
       <div class="abar"><div class="abar-fill" style="width:${total>0?((latest.hostplus||0)/total*100):0}%"></div></div>
     </div>
     <div class="acard" style="--ac:#D9A441">
-      <div class="acard-label">VGS + DHHF</div>
-      <div class="acard-value">${fmtFull((latest.vgs||0)+(latest.dhhf||0))}</div>
-      <div class="acard-sub">VGS ${fmtFull(latest.vgs||0)} · 13.48% p.a. · $165/fn<br>DHHF ${fmtFull(latest.dhhf||0)} · 10.35% p.a. · $100/fn</div>
+      <div class="acard-label">VGS + DHHF + VHY</div>
+      <div class="acard-value">${fmtFull((latest.vgs||0)+(latest.dhhf||0)+(latest.vhy||0))}</div>
+      <div class="acard-sub">VGS ${fmtFull(latest.vgs||0)} · 13.48% p.a. · $165/fn<br>DHHF ${fmtFull(latest.dhhf||0)} · 10.35% p.a. · $100/fn<br>VHY ${fmtFull(latest.vhy||0)} · 14.08% p.a. · ~$85/fn</div>
       <span class="abadge badge-liq">💧 Liquid</span>
-      <div class="abar"><div class="abar-fill" style="width:${total>0?(((latest.vgs||0)+(latest.dhhf||0))/total*100):0}%"></div></div>
+      <div class="abar"><div class="abar-fill" style="width:${total>0?(((latest.vgs||0)+(latest.dhhf||0)+(latest.vhy||0))/total*100):0}%"></div></div>
     </div>
     <div class="acard" style="--ac:#9B7FD4">
       <div class="acard-label">Nvidia (NVDA)</div>
@@ -1104,6 +1111,7 @@ function renderDashboard(){
   const liquidAt = n =>
       fvR(latest.vgs||0, RATES.vgs, CONTRIB.vgs, n)
     + fvR(latest.dhhf||0, RATES.dhhf, CONTRIB.dhhf, n)
+    + fvR(latest.vhy||0, RATES.vhy, CONTRIB.vhy, n)
     + fvR(latest.hysa||0, RATES.hysa, CONTRIB.hysa, n)
     + (nvdaIncluded() ? nvdaFV(nvdaTotalShares()||7, NVDA_ADD_PER_YEAR,
         nvdaPriceAUD(),
@@ -1116,7 +1124,7 @@ function renderDashboard(){
   if(glv) glv.textContent = yLiq>=25 ? 'Beyond Yr 25' : 'Year '+Math.ceil(yLiq);
   if(gls) gls.innerHTML = yLiq>=25
     ? 'Not reached within the modelled horizon'
-    : `Age ${Math.floor(CURRENT_AGE_BASE+yLiq)} · ${dateAfter(yLiq)}<br>VGS + DHHF + HYSA${nvdaIncluded()?' + NVDA':''}`;
+    : `Age ${Math.floor(CURRENT_AGE_BASE+yLiq)} · ${dateAfter(yLiq)}<br>VGS + DHHF + VHY + HYSA${nvdaIncluded()?' + NVDA':''}`;
 
   const tbody = document.getElementById('proj-table');
   tbody.innerHTML='';
@@ -1127,11 +1135,12 @@ function renderDashboard(){
     const sv  = fvR(latest.hostplus||0, RATES.hostplus, CONTRIB.hostplus, y);
     const vgsV= fvR(latest.vgs||0, RATES.vgs, CONTRIB.vgs, y);
     const dbV = fvR(latest.dhhf||0, RATES.dhhf, CONTRIB.dhhf, y);
+    const vhV = fvR(latest.vhy||0, RATES.vhy, CONTRIB.vhy, y);
     const hV  = fvR(latest.hysa||0, RATES.hysa, CONTRIB.hysa, y);
     const nvdaS= nvdaTotalShares()||7;
     const nvdaP= nvdaPriceAUD();
     const nV  = nvdaIncluded() ? nvdaFV(nvdaS,NVDA_ADD_PER_YEAR,nvdaP,nvdaRate(),y) : 0;
-    const liq = vgsV+dbV+hV+nV;
+    const liq = vgsV+dbV+vhV+hV+nV;
     const tot = sv+liq;
     const unlocked = age>=PRESERVATION_AGE;
     const prevTot = y>1?projectTotal(latest,y-1):total;
@@ -1145,7 +1154,7 @@ function renderDashboard(){
     const rc = isGoal?'tr-goal':isUnlock?'tr-unlock':'';
     tbody.innerHTML+=`<tr class="${rc}">
       <td>Yr ${y} · Age ${age}</td><td>${fmtAUD(sv)}</td><td>${fmtAUD(vgsV)}</td>
-      <td>${fmtAUD(dbV)}</td><td>${fmtAUD(nV)}</td><td>${fmtAUD(hV)}</td>
+      <td>${fmtAUD(dbV)}</td><td>${fmtAUD(vhV)}</td><td>${fmtAUD(nV)}</td><td>${fmtAUD(hV)}</td>
       <td>${fmtAUD(liq)}</td><td><b>${fmtAUD(tot)}</b></td><td>${badge}</td>
     </tr>`;
     barRows.push({y,age,sv,liq,tot});
@@ -1167,7 +1176,7 @@ function renderDashboard(){
     </div>`;
   });
 
-  document.getElementById('disc').innerHTML=`⚠ All figures AUD. Rates: Hostplus 8.30% p.a. (Balanced MySuper 10yr), VGS 13.48% p.a. (Vanguard fact sheet Apr 2026), DHHF 10.35% p.a. (BetaShares 5yr), NVDA 25% p.a. conservative forward estimate, HYSA 4.5% p.a. Projections update live from your latest journal entry. AUD/USD held at 0.7164. Preservation age 60 assumed (Sep 2035). Past performance is not a reliable indicator of future returns. Not financial advice.`;
+  document.getElementById('disc').innerHTML=`⚠ All figures AUD. Rates: Hostplus 8.30% p.a. (Balanced MySuper 10yr), VGS 13.48% p.a. (Vanguard fact sheet Apr 2026), DHHF 10.35% p.a. (BetaShares 5yr), VHY 14.08% p.a. (5yr to Sep 2026), NVDA 25% p.a. conservative forward estimate, HYSA 4.5% p.a. Projections update live from your latest journal entry. AUD/USD held at 0.7164. Preservation age 60 assumed (Sep 2035). Past performance is not a reliable indicator of future returns. Not financial advice.`;
 
   try{ renderMilestoneChart(); }
   catch(err){
@@ -1204,6 +1213,7 @@ function saveEntry(){
     hysa:     getVal('log-hysa',     prev.hysa||0),
     vgs:      getVal('log-vgs',      prev.vgs||0),
     dhhf:     getVal('log-dhhf',     prev.dhhf||0),
+    vhy:      getVal('log-vhy',      prev.vhy||0),
     nvda:     nvdaManual !== null ? nvdaManual : (prev.nvda||nvdaAuto),
     note:     document.getElementById('log-note').value,
   };
@@ -1327,6 +1337,7 @@ function renderJournal(){
           ${e.hysa?`<span class="ja">HYSA ${fmtFull(e.hysa)}</span>`:''}
           ${e.vgs?`<span class="ja">VGS ${fmtFull(e.vgs)}</span>`:''}
           ${e.dhhf?`<span class="ja">DHHF ${fmtFull(e.dhhf)}</span>`:''}
+          ${e.vhy?`<span class="ja">VHY ${fmtFull(e.vhy)}</span>`:''}
           ${e.nvda?`<span class="ja">NVDA ${fmtFull(e.nvda)}</span>`:''}
         </div>
         <button class="btn-del" onclick="delEntry('${e.id}')">remove entry</button>
@@ -1350,6 +1361,7 @@ function prefillLogForm(){
   document.getElementById('log-hysa').value      = prev.hysa||'';
   document.getElementById('log-vgs').value       = prev.vgs||'';
   document.getElementById('log-dhhf').value      = prev.dhhf||'';
+  document.getElementById('log-vhy').value       = prev.vhy||'';
   document.getElementById('log-nvda').value      = prev.nvda||'';
   document.getElementById('log-nvda-usd').value  = '';
   document.getElementById('log-note').value      = '';
@@ -1533,6 +1545,7 @@ const DCA_MS_KEY     = 'dca-ms-v1';
 const DCA_PORTFOLIOS = [
   {key:'vgs',   label:'VGS',    full:'VGS — Vanguard MSCI Intl',         hex:'#5B9C86', currency:'AUD'},
   {key:'dhhf',  label:'DHHF',   full:'DHHF — Diversified High Growth',   hex:'#4A9EBF', currency:'AUD'},
+  {key:'vhy',   label:'VHY',    full:'VHY — Vanguard Aus High Yield',     hex:'#C97B5A', currency:'AUD'},
   {key:'nvda',  label:'NVDA',   full:'Nvidia',                            hex:'#9B7FD4', currency:'USD'},
   {key:'super', label:'Hostplus', full:'Hostplus — salary sacrifice + employer SG', hex:'#5B9C86', currency:'AUD'},
   {key:'hysa',  label:'HYSA',   full:'High-Yield Savings',                hex:'#D9A441', currency:'AUD'},
